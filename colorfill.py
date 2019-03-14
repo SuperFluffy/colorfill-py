@@ -188,7 +188,14 @@ if __name__ == "__main__":
 
     img = plt.imshow(game.board)
     plt.waitforbuttonpress()
-    for _, game in game.run_strategy(strategy):
+
+    color_sequence = []
+    for color, game in game.run_strategy(strategy):
+        print(f'Next color label: {color}')
+        color_sequence.append(color)
         img.set_data(game.board)
         plt.draw()
         plt.waitforbuttonpress()
+
+    print('Summary of steps taken (<color label> -> <color label> -> ...)')
+    print(f'{" -> ".join(str(c) for c in color_sequence)}')
