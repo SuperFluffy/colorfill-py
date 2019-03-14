@@ -44,7 +44,7 @@ class Game:
 # Look at all regions adjacent to the regions with `reference_label`, and sum
 # up the areas of those regios that share the same value (color). Return a
 # dictionary mapping value -> area.
-def __get_area_adjacent_values(board, reference_label, adjacency_graph, region_properties):
+def __sum_adjacent_areas_of_same_color(board, reference_label, adjacency_graph, region_properties):
     label_value = {}
     label_area = {}
     for prop in region_properties:
@@ -64,8 +64,12 @@ def __get_area_adjacent_values(board, reference_label, adjacency_graph, region_p
     return adjacent_value_area
 
 # A function implementing a greedy strategy.
-# Takes a `Game`, and yields the next state of it/its board where it attempts to color the maximum
-# possible area adjacent to the root.
+# Takes a `Game`, and yields its next state.
+# The state is updated by taking the root region, summing the area of those regions adjacent to it that share a color,
+# and flipping the root region to the color whose regions have the largest summed area.
+#
+# If two sets of regions with different colors have the same total area, then that region is chosen whose color has the
+# lesser label.
 def greedy(game):
     connected_regions = game.connected_regions()
     adjacency_graph = graph.rag_mean_color(game.board, connected_regions, connectivity=1)
@@ -73,11 +77,15 @@ def greedy(game):
 
     root_label = connected_regions[0, 0]
 
-    area_adjacent_values = __get_area_adjacent_values(game.board, root_label, adjacency_graph, props)
-    largest_adjacent_value = max(area_adjacent_values.keys(), key = lambda k: area_adjacent_values[k])
+    color_to_adjacent_area = __sum_adjacent_areas_of_same_color(game.board, root_label, adjacency_graph, props)
+    largest_adjacent_area = max(color_to_adjacent_area.values())
+
+    colors_of_equal_area = [color for color, area in color_to_adjacent_area.items() if area == largest_adjacent_area]
+
+    target_color = min(colors_of_equal_area)
 
     coords_of_root_region = connected_regions == root_label
-    game.board[coords_of_root_region] = largest_adjacent_value
+    game.board[coords_of_root_region] = target_color
 
     yield game
 

@@ -8,7 +8,11 @@ fancy is going on.
 
 There are two strategies implemented:
 
-+ `greedy`: the next move colors the largest adjacent area
++ `greedy`: the areas of regions adjacent to the root region are summed if they
+  share a color. The root region is flipped to that color whose regions have
+  the largest summed area. If two sets of regions with different colors have
+  the same total area, then that region is chosen whose color has the lesser
+  label.
 + `smart`: adjacent areas are translated into an adjacency graph; after
   obtaining the longest path possible path from the root node to any of the
   other nodes in the graph, one step along that path is taken, areas are
