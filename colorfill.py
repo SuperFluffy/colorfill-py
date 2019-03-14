@@ -9,62 +9,77 @@ from skimage import measure
 from skimage.future import graph
 
 class Game:
-    # Initialize a `FloodIt` game of board `size` n×n with a number `n_colors`
-    # of different colors.
-    def __init__(self, size, n_colors, seed=None):
-        self.size = size
-        self.n_colors = n_colors
+    def __init__(self, board):
+        self.board = board
 
+    # Initialize a `FloodIt` game with a board of dimensions size×size with a number `n_colors`
+    # of different colors.
+    @classmethod
+    def from_params(cls, size, n_colors, seed=None):
         board_shape = (size, size)
 
         if seed is not None:
             np.random.seed(1)
 
         # We start from 1 because most image segmentation libraries consider a
-        # value of 0 as background.
-        self.board = np.random.randint(1, n_colors+1, board_shape)
+        # color of 0 as background.
+        board = np.random.randint(1, n_colors+1, board_shape)
 
-        root_value = 1
-        board_root_value = self.board[0,0]
+        root_color = 1
+        board_root_color = board[0,0]
 
-        # Make sure that the value of root cell is always 1
+        # Make sure that the color of root cell is always 1
         # for easier consumption of the graph algorithms
-        if root_value is not board_root_value:
-            all_of_root = self.board == root_value
-            all_of_board_root = self.board == board_root_value
+        if root_color is not board_root_color:
+            all_of_root = board == root_color
+            all_of_board_root = board == board_root_color
 
-            self.board[all_of_root] = board_root_value
-            self.board[all_of_board_root] = root_value
+            board[all_of_root] = board_root_color
+            board[all_of_board_root] = root_color
+
+        return cls(board)
 
     # Return a grid of the same dimensions as self.board, with contiguous areas of
     # the same color carrying a unique label.
     def connected_regions(self):
         return measure.label(self.board, neighbors=4)
 
+    def is_fully_flooded(self):
+        return np.all(self.board == self.board[0,0])
+
+    def run_strategy(self, strategy):
+        while not self.is_fully_flooded():
+            for c, g in strategy(self):
+                yield c, g
+            self = g
+
 # Look at all regions adjacent to the regions with `reference_label`, and sum
-# up the areas of those regios that share the same value (color). Return a
-# dictionary mapping value -> area.
+# up the areas of those regios that share the same color. Return a
+# dictionary mapping color -> area.
 def __sum_adjacent_areas_of_same_color(board, reference_label, adjacency_graph, region_properties):
-    label_value = {}
+    label_color = {}
     label_area = {}
     for prop in region_properties:
         x, y = prop.coords[0]
-        label_value[prop.label] = board[x,y]
+        label_color[prop.label] = board[x,y]
         label_area[prop.label] = prop.area
 
-    # Regions adjacent to the reference region can have the same value, but not
+    # Regions adjacent to the reference region can have the same color, but not
     # be connected to each other. The greedy algorithm adds the area of all
     # such regions.
-    adjacent_value_area = defaultdict(int)
+    adjacent_color_area = defaultdict(int)
 
     for _, node in adjacency_graph.edges(reference_label):
-        value = label_value[node]
-        adjacent_value_area[value] += label_area[node]
+        color = label_color[node]
+        adjacent_color_area[color] += label_area[node]
 
-    return adjacent_value_area
+    return adjacent_color_area
 
 # A function implementing a greedy strategy.
-# Takes a `Game`, and yields its next state.
+
+# Takes a `Game`, and yields a tuple `(color, game)`, where `color` is the color of the next move, and `game`
+# the updated game state.
+
 # The state is updated by taking the root region, summing the area of those regions adjacent to it that share a color,
 # and flipping the root region to the color whose regions have the largest summed area.
 #
@@ -87,7 +102,7 @@ def greedy(game):
     coords_of_root_region = connected_regions == root_label
     game.board[coords_of_root_region] = target_color
 
-    yield game
+    yield target_color, game
 
 # Takes an adjacency graph and a label, and looks at all possible paths from
 # the node with that label to all other nodes in the graph. Returns the longest
@@ -107,8 +122,11 @@ def __find_longest_path(adjacency_graph, root_label):
 
     return longest_path
 
-# A function implementing a greedy strategy.
-# Takes a `Game`, and yields the next state of it/its board.
+# A function implementing a smart strategy, using dijkstra's Path finding algorithm
+
+# Takes a `Game`, and yields a tuple `(color, game)`, where `color` is the color of the next move, and `game`
+# the updated game state.
+
 # Adjacent areas are translated into an adjacency graph; after obtaining the
 # longest path possible path from the root node to any of the other nodes in
 # the graph, one step along that path is taken, areas are recolored, nodes
@@ -122,17 +140,17 @@ def smart(game):
 
     root_label = connected_regions[0, 0]
 
-    label_to_value = {}
+    label_to_color = {}
     for prop in properties:
         x, y = prop.coords[0]
-        label_to_value[prop.label] = game.board[x,y]
+        label_to_color[prop.label] = game.board[x,y]
 
     while len(adjacency_graph.nodes) > 1:
         longest_path = __find_longest_path(adjacency_graph, root_label)
         # This target label is guaranteed to exist if there is more than one node in the graph and
         # the graph is fully connected.
         target_label = longest_path[1]
-        target_value = label_to_value[target_label]
+        target_color = label_to_color[target_label]
 
         # Merge the root_label into the target_label
         # The target_label becomes the new root label
@@ -140,22 +158,16 @@ def smart(game):
 
         coords_of_root_region = connected_regions == root_label
         connected_regions[coords_of_root_region] = target_label
-        game.board[coords_of_root_region] = target_value
+        game.board[coords_of_root_region] = target_color
         root_label = target_label
 
-        # Iterate over the neighbors of the new contracted root node and merge them if they have the same value as root
+        # Iterate over the neighbors of the new contracted root node and merge them if they have the same color as root
         for neighbor in adjacency_graph[target_label].keys():
-            if label_to_value[neighbor] == target_value:
+            if label_to_color[neighbor] == target_color:
                 adjacency_graph = nx.algorithms.minors.contracted_nodes(adjacency_graph, root_label, neighbor)
                 connected_regions[connected_regions == neighbor] = root_label
 
-        yield game
-
-def run_strategy(game, strategy):
-    while not np.all(game.board == game.board[0,0]):
-        for g in strategy(game):
-            yield g
-        game = g
+        yield target_color, game
 
 strategies = {
     'greedy': greedy,
@@ -171,12 +183,12 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    game = Game(args.size, args.colors, args.fixed)
+    game = Game.from_params(args.size, args.colors, args.fixed)
     strategy = strategies[args.strategy]
 
     img = plt.imshow(game.board)
     plt.waitforbuttonpress()
-    for game in run_strategy(game, strategy):
+    for _, game in game.run_strategy(strategy):
         img.set_data(game.board)
         plt.draw()
         plt.waitforbuttonpress()

@@ -43,12 +43,13 @@ $ pacman -S tk
 
 ## Usage
 
-Install with `pipenv`, activate the shell, and run:
+Install with `pipenv`, activate the shell, and run the program:
 
 ```bash
 $ pipenv install
 # This might take a while
 $ pipenv shell
+$ ./test.py
 $ ./colorfill.py -h
 usage: colorfill.py [-h] -n SIZE -c COLORS [-s {greedy,smart}] [-f]
 
