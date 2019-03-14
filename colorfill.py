@@ -9,6 +9,8 @@ from skimage import measure
 from skimage.future import graph
 
 class Game:
+    # Initialize a `FloodIt` game of board `size` n×n with a number `n_colors`
+    # of different colors.
     def __init__(self, size, n_colors, seed=None):
         self.size = size
         self.n_colors = n_colors
@@ -39,8 +41,10 @@ class Game:
     def connected_regions(self):
         return measure.label(self.board, neighbors=4)
 
-def get_area_adjacent_values(board, reference_label, adjacency_graph, region_properties):
-    # A dictionary to map a connected region to its value
+# Look at all regions adjacent to the regions with `reference_label`, and sum
+# up the areas of those regios that share the same value (color). Return a
+# dictionary mapping value -> area.
+def __get_area_adjacent_values(board, reference_label, adjacency_graph, region_properties):
     label_value = {}
     label_area = {}
     for prop in region_properties:
@@ -59,6 +63,9 @@ def get_area_adjacent_values(board, reference_label, adjacency_graph, region_pro
 
     return adjacent_value_area
 
+# A function implementing a greedy strategy.
+# Takes a `Game`, and yields the next state of it/its board where it attempts to color the maximum
+# possible area adjacent to the root.
 def greedy(game):
     connected_regions = game.connected_regions()
     adjacency_graph = graph.rag_mean_color(game.board, connected_regions, connectivity=1)
@@ -66,7 +73,7 @@ def greedy(game):
 
     root_label = connected_regions[0, 0]
 
-    area_adjacent_values = get_area_adjacent_values(game.board, root_label, adjacency_graph, props)
+    area_adjacent_values = __get_area_adjacent_values(game.board, root_label, adjacency_graph, props)
     largest_adjacent_value = max(area_adjacent_values.keys(), key = lambda k: area_adjacent_values[k])
 
     coords_of_root_region = connected_regions == root_label
@@ -74,7 +81,10 @@ def greedy(game):
 
     yield game
 
-def find_longest_path(adjacency_graph, root_label):
+# Takes an adjacency graph and a label, and looks at all possible paths from
+# the node with that label to all other nodes in the graph. Returns the longest
+# such path (or the first, if more than one have the same length).
+def __find_longest_path(adjacency_graph, root_label):
     # Find the longest path we can walk from the root
     longest_path = None
     for target_node in adjacency_graph.nodes:
@@ -89,7 +99,13 @@ def find_longest_path(adjacency_graph, root_label):
 
     return longest_path
 
-# This uses dijkstra internally
+# A function implementing a greedy strategy.
+# Takes a `Game`, and yields the next state of it/its board.
+# Adjacent areas are translated into an adjacency graph; after obtaining the
+# longest path possible path from the root node to any of the other nodes in
+# the graph, one step along that path is taken, areas are recolored, nodes
+# merged, and a new longest path is constructed.
+# possible area adjacent to the root.
 def smart(game):
     connected_regions = game.connected_regions()
     properties = measure.regionprops(connected_regions)
@@ -103,11 +119,10 @@ def smart(game):
         x, y = prop.coords[0]
         label_to_value[prop.label] = game.board[x,y]
 
-    # Our strategy consists in finding the longest path to any node from the root region
-    # taking a step in that direction (recoloring the board, etc), and then calculating
-    # a new longest path.
     while len(adjacency_graph.nodes) > 1:
-        longest_path = find_longest_path(adjacency_graph, root_label)
+        longest_path = __find_longest_path(adjacency_graph, root_label)
+        # This target label is guaranteed to exist if there is more than one node in the graph and
+        # the graph is fully connected.
         target_label = longest_path[1]
         target_value = label_to_value[target_label]
 
