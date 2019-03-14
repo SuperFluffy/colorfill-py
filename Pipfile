@@ -1,0 +1,16 @@
+[[source]]
+name = "colorfill-py"
+url = "https://github.com/superfluffy/colorfill-py"
+verify_ssl = true
+
+[dev-packages]
+
+[packages]
+numpy = "*"
+ipython = "*"
+matplotlib = "*"
+scikit-image = "*"
+networkx = "*"
+
+[requires]
+python_version = "3.7"
